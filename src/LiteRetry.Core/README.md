@@ -84,7 +84,7 @@ public class DataFetcher
             return await response.Content.ReadAsStringAsync(ct);
         };
 
-        RetryResult<string> result = await RetryBuilder.Configure()
+        RetryResult<string> result = await Retry.Configure()
             .WithMaxAttempts(3)
             .WithBaseDelay(TimeSpan.FromMilliseconds(500))
             .WithFilterByType<HttpRequestException>()
@@ -135,7 +135,7 @@ public class TaskProcessor
 
         try
         {
-            IRetryExecutor retryExecutor = RetryBuilder.Configure()
+            IRetryExecutor retryExecutor = Retry.Configure()
                 .WithMaxAttempts(4)
                 .WithBaseDelay(TimeSpan.FromMilliseconds(300))
                 .WithStrategy(DelayStrategy.Fixed)
