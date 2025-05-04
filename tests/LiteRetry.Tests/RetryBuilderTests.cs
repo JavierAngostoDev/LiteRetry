@@ -218,6 +218,101 @@ public class RetryBuilderTests
     }
 
     [Fact]
+    public async Task RunAsync_T_WithOnSuccessHook_HookIsCalledOnceOnSuccess()
+    {
+        // Arrange
+        int onSuccessCalls = 0;
+        RetryContext? receivedContext = null;
+
+        Func<CancellationToken, Task<string>> operation = async ct =>
+        {
+            await Task.Delay(1, ct);
+            return "SUCCESS";
+        };
+
+        Func<RetryContext, Task> onSuccess = ctx =>
+        {
+            onSuccessCalls++;
+            receivedContext = ctx;
+            return Task.CompletedTask;
+        };
+
+        RetryBuilder builder = RetryBuilder.Configure()
+                                           .OnSuccessAsync(onSuccess)
+                                           .WithMaxAttempts(3)
+                                           .WithBaseDelay(TimeSpan.FromMilliseconds(1));
+
+        // Act
+        RetryResult<string> result = await builder.RunAsync(operation);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Value.Should().Be("SUCCESS");
+        result.Attempts.Should().Be(1);
+        onSuccessCalls.Should().Be(1);
+        receivedContext.Should().NotBeNull();
+        receivedContext!.Attempt.Should().Be(1);
+        receivedContext.LastException.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_T_WithTotalTimeoutExceeded_StopsEarlyWithFailure()
+    {
+        // Arrange
+        int attemptsMade = 0;
+        Func<CancellationToken, Task<string>> operation = async ct =>
+        {
+            attemptsMade++;
+            await Task.Delay(300, ct);
+            throw new InvalidOperationException("Fail");
+        };
+
+        RetryBuilder builder = RetryBuilder.Configure()
+                                           .WithMaxAttempts(5)
+                                           .WithBaseDelay(TimeSpan.FromMilliseconds(100))
+                                           .WithTimeout(TimeSpan.FromMilliseconds(500));
+
+        // Act
+        RetryResult<string> result = await builder.RunAsync(operation);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Attempts.Should().BeLessThan(5);
+        attemptsMade.Should().BeGreaterThan(0);
+        result.FinalException.Should().BeOfType<RetryFailedException>();
+        result.FinalException!.Message.Should().Contain("timeout");
+    }
+
+    [Fact]
+    public async Task RunAsync_T_WithTotalTimeoutSucceedsWithinLimit()
+    {
+        // Arrange
+        int attemptsMade = 0;
+        Func<CancellationToken, Task<int>> operation = async ct =>
+        {
+            attemptsMade++;
+            await Task.Delay(100, ct);
+            if (attemptsMade < 3)
+                throw new Exception("Temporary failure");
+
+            return 42;
+        };
+
+        RetryBuilder builder = RetryBuilder.Configure()
+                                           .WithMaxAttempts(5)
+                                           .WithBaseDelay(TimeSpan.FromMilliseconds(100))
+                                           .WithTimeout(TimeSpan.FromMilliseconds(1000));
+
+        // Act
+        RetryResult<int> result = await builder.RunAsync(operation);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Value.Should().Be(42);
+        result.Attempts.Should().Be(3);
+    }
+
+    [Fact]
     public async Task RunAsync_Void_NullOperation_ThrowsArgumentNullException()
     {
         RetryBuilder builder = RetryBuilder.Configure();
@@ -280,43 +375,5 @@ public class RetryBuilderTests
 
         act.Should().Throw<RetryFailedException>()
            .WithMessage("Exception filter predicate cannot be null.");
-    }
-
-    [Fact]
-    public async Task RunAsync_T_WithOnSuccessHook_HookIsCalledOnceOnSuccess()
-    {
-        // Arrange
-        int onSuccessCalls = 0;
-        RetryContext? receivedContext = null;
-
-        Func<CancellationToken, Task<string>> operation = async ct =>
-        {
-            await Task.Delay(1, ct);
-            return "SUCCESS";
-        };
-
-        Func<RetryContext, Task> onSuccess = ctx =>
-        {
-            onSuccessCalls++;
-            receivedContext = ctx;
-            return Task.CompletedTask;
-        };
-
-        RetryBuilder builder = RetryBuilder.Configure()
-                                           .OnSuccessAsync(onSuccess)
-                                           .WithMaxAttempts(3)
-                                           .WithBaseDelay(TimeSpan.FromMilliseconds(1));
-
-        // Act
-        RetryResult<string> result = await builder.RunAsync(operation);
-
-        // Assert
-        result.Succeeded.Should().BeTrue();
-        result.Value.Should().Be("SUCCESS");
-        result.Attempts.Should().Be(1);
-        onSuccessCalls.Should().Be(1);
-        receivedContext.Should().NotBeNull();
-        receivedContext!.Attempt.Should().Be(1);
-        receivedContext.LastException.Should().BeNull();
     }
 }

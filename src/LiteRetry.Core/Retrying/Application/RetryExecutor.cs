@@ -24,6 +24,8 @@ public static class RetryExecutor
     /// <param name="delayStrategy">The strategy for calculating delays between attempts (Fixed, Exponential, ExponentialWithJitter). Defaults to Fixed.</param>
     /// <param name="shouldRetry">An optional predicate function that determines if a retry should occur based on the caught exception. If null, retries on any exception. Return true to retry, false to fail immediately.</param>
     /// <param name="onRetryAsync">An optional asynchronous action to execute before each retry attempt. Receives context about the current attempt.</param>
+    /// <param name="onSuccessAsync">An optional asynchronous action to execute after a successful retry. Receives context about the current attempt.</param>
+    /// <param name="totalTimeout">An optional maximum duration for the entire retry process. If the total elapsed time exceeds this value, the operation is aborted with a timeout exception.</param>
     /// <param name="cancellationToken">A CancellationToken to observe while waiting for the operation and delays.</param>
     /// <returns>
     /// A Task representing the asynchronous retry operation, yielding a <see cref="RetryResult{T}"/>
@@ -39,6 +41,7 @@ public static class RetryExecutor
         Func<Exception, bool>? shouldRetry = null,
         Func<RetryContext, Task>? onRetryAsync = null,
         Func<RetryContext, Task>? onSuccessAsync = null,
+        TimeSpan? totalTimeout = null,
         CancellationToken cancellationToken = default
     )
     {
@@ -49,6 +52,12 @@ public static class RetryExecutor
         if (baseDelay < TimeSpan.Zero)
             effectiveBaseDelay = TimeSpan.FromMilliseconds(200);
 
+        using CancellationTokenSource? timeoutCts = totalTimeout.HasValue
+            ? new CancellationTokenSource(totalTimeout.Value)
+            : null;
+        using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts?.Token ?? CancellationToken.None);
+        CancellationToken effectiveToken = linkedCts.Token;
+
         int attempt = 0;
         Stopwatch totalStopwatch = Stopwatch.StartNew();
         DateTimeOffset operationStartTime = DateTimeOffset.UtcNow;
@@ -56,13 +65,14 @@ public static class RetryExecutor
 
         while (attempt < maxAttempts)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            attempt++;
             Stopwatch attemptStopwatch = Stopwatch.StartNew();
 
             try
             {
-                T result = await operation(cancellationToken).ConfigureAwait(false);
+                effectiveToken.ThrowIfCancellationRequested();
+                attempt++;
+
+                T result = await operation(effectiveToken).ConfigureAwait(false);
                 attemptStopwatch.Stop();
                 totalStopwatch.Stop();
 
@@ -93,10 +103,26 @@ public static class RetryExecutor
                 attemptStopwatch.Stop();
                 lastException = ex;
 
-                if (ex is OperationCanceledException && cancellationToken.IsCancellationRequested)
+                if (ex is OperationCanceledException && effectiveToken.IsCancellationRequested)
                 {
-                    totalStopwatch.Stop();
-                    throw;
+                    totalStopwatch.Stop(); 
+                    RetryFailedException timeoutException = new
+                    (
+                        message: $"Retry process exceeded total timeout.",
+                        attempts: attempt,
+                        elapsedTime: totalStopwatch.Elapsed,
+                        innerException: lastException
+                    );
+
+                    return new RetryResult<T>
+                    (
+                        value: default,
+                        succeeded: false,
+                        finalException: timeoutException,
+                        attempts: attempt,
+                        elapsedTime: totalStopwatch.Elapsed,
+                        lastAttemptDuration: totalStopwatch.Elapsed
+                    );
                 }
 
                 if (attempt >= maxAttempts || !(shouldRetry?.Invoke(ex) ?? true))
@@ -138,7 +164,7 @@ public static class RetryExecutor
 
                 if (currentDelay > TimeSpan.Zero)
                 {
-                    await Task.Delay(currentDelay, cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(currentDelay, effectiveToken).ConfigureAwait(false);
                 }
             }
         }
@@ -166,7 +192,7 @@ public static class RetryExecutor
 
     /// <summary>
     /// Executes an asynchronous operation that does not return a result, with retry logic based on the specified parameters.
-    /// This is a convenience overload that calls the generic ExecuteAsync&lt;T&gt; method.
+    /// This is a convenience overload that calls the generic ExecuteAsync method.
     /// </summary>
     /// <param name="operation">The asynchronous action to execute. It receives a CancellationToken.</param>
     /// <param name="maxAttempts">The maximum number of attempts (including the initial one). Must be at least 1. Defaults to 3.</param>
@@ -174,6 +200,8 @@ public static class RetryExecutor
     /// <param name="delayStrategy">The strategy for calculating delays between attempts (Fixed, Exponential, ExponentialWithJitter). Defaults to Fixed.</param>
     /// <param name="shouldRetry">An optional predicate function that determines if a retry should occur based on the caught exception. If null, retries on any exception. Return true to retry, false to fail immediately.</param>
     /// <param name="onRetryAsync">An optional asynchronous action to execute before each retry attempt. Receives context about the current attempt.</param>
+    /// <param name="onSuccessAsync">An optional asynchronous action to execute after a successful retry. Receives context about the current attempt.</param>
+    /// <param name="totalTimeout">An optional maximum duration for the entire retry process. If the total elapsed time exceeds this value, the operation is aborted with a timeout exception.</param>
     /// <param name="cancellationToken">A CancellationToken to observe while waiting for the operation and delays.</param>
     /// <returns>
     /// A Task representing the asynchronous retry operation.
@@ -190,12 +218,13 @@ public static class RetryExecutor
     public static async Task ExecuteAsync
     (
         Func<CancellationToken, Task> operation,
-        int maxAttempts = 4,
+        int maxAttempts = 3,
         TimeSpan? baseDelay = null,
         DelayStrategy delayStrategy = DelayStrategy.Fixed,
         Func<Exception, bool>? shouldRetry = null,
         Func<RetryContext, Task>? onRetryAsync = null,
         Func<RetryContext, Task>? onSuccessAsync = null,
+        TimeSpan? totalTimeout = null,
         CancellationToken cancellationToken = default
     )
     {
@@ -214,6 +243,7 @@ public static class RetryExecutor
             shouldRetry: shouldRetry,
             onRetryAsync: onRetryAsync,
             onSuccessAsync: onSuccessAsync,
+            totalTimeout: totalTimeout,
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
     }

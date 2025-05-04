@@ -1,4 +1,5 @@
-﻿using FluentAssertions;
+﻿using System.Diagnostics;
+using FluentAssertions;
 using LiteRetry.Core.Retrying.Application;
 using LiteRetry.Core.Retrying.Application.Enums;
 using LiteRetry.Core.Retrying.Domain;
@@ -8,15 +9,22 @@ namespace LiteRetry.Tests;
 public class RetryExecutorTests
 {
     [Fact]
-    public async Task ExecuteAsync_CancellationRequestedBeforeFirstAttempt_ThrowsOperationCanceledException()
+    public async Task ExecuteAsync_CancellationRequestedBeforeFirstAttempt_ReturnsFailureWithRetryFailedException()
     {
+        // Arrange
         Func<CancellationToken, Task<string>> operation = ct => Task.FromResult("Should not run");
         using CancellationTokenSource cts = new CancellationTokenSource();
         cts.Cancel();
 
-        Func<Task> act = () => RetryExecutor.ExecuteAsync(operation, cancellationToken: cts.Token);
+        // Act
+        RetryResult<string> result = await RetryExecutor.ExecuteAsync(operation, cancellationToken: cts.Token);
 
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        // Assert
+        result.Should().NotBeNull();
+        result.Succeeded.Should().BeFalse();
+        result.Attempts.Should().Be(0);
+        result.FinalException.Should().BeOfType<RetryFailedException>();
+        result.FinalException!.Message.Should().Contain("timeout");
     }
 
     [Fact]
@@ -212,7 +220,7 @@ public class RetryExecutorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_OperationItselfThrowsOperationCanceledException_PropagatesException()
+    public async Task ExecuteAsync_OperationItselfThrowsOperationCanceledException_ReturnsFailureWithRetryFailedException()
     {
         using CancellationTokenSource cts = new CancellationTokenSource();
         int attemptsMade = 0;
@@ -229,10 +237,17 @@ public class RetryExecutorTests
             throw new InvalidOperationException("Temporary failure before cancellation");
         };
 
-        Func<Task> act = () => RetryExecutor.ExecuteAsync(operation, maxAttempts: 3, baseDelay: TimeSpan.FromMilliseconds(5), cancellationToken: cts.Token);
+        RetryResult<string> result = await RetryExecutor.ExecuteAsync(
+            operation,
+            maxAttempts: 3,
+            baseDelay: TimeSpan.FromMilliseconds(5),
+            cancellationToken: cts.Token
+        );
 
-        await act.Should().ThrowAsync<OperationCanceledException>();
-        attemptsMade.Should().Be(2);
+        result.Succeeded.Should().BeFalse();
+        result.Attempts.Should().Be(2);
+        result.FinalException.Should().BeOfType<RetryFailedException>();
+        result.FinalException!.Message.Should().Contain("timeout");
     }
 
     [Fact]
@@ -289,6 +304,43 @@ public class RetryExecutorTests
         onRetryCalls.Should().Be(0);
         result.FinalException.Should().BeOfType<RetryFailedException>();
         result.FinalException!.InnerException.Should().BeOfType<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_TimeoutExceededBeforeCompletion_ReturnsFailureImmediately()
+    {
+        // Arrange
+        int attemptsMade = 0;
+        Func<CancellationToken, Task<string>> operation = async (ct) =>
+        {
+            attemptsMade++;
+            await Task.Delay(300, ct);
+            throw new InvalidOperationException("Simulated failure");
+        };
+
+        TimeSpan totalTimeout = TimeSpan.FromMilliseconds(500);
+
+        Stopwatch sw = Stopwatch.StartNew();
+
+        // Act
+        RetryResult<string> result = await RetryExecutor.ExecuteAsync
+        (
+            operation,
+            maxAttempts: 5,
+            baseDelay: TimeSpan.FromMilliseconds(100),
+            delayStrategy: DelayStrategy.Fixed,
+            totalTimeout: totalTimeout
+        );
+
+        sw.Stop();
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Attempts.Should().BeLessThan(5);
+        result.FinalException.Should().BeOfType<RetryFailedException>();
+        result.FinalException!.Message.Should().Contain("timeout");
+        sw.Elapsed.Should().BeGreaterThanOrEqualTo(totalTimeout);
+        attemptsMade.Should().BeGreaterThan(0);
     }
 
     [Theory]

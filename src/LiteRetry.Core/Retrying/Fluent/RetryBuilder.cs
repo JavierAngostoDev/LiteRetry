@@ -16,6 +16,7 @@ public sealed class RetryBuilder
     private Func<RetryContext, Task>? _onSuccessAsync = null;
     private Func<Exception, bool>? _shouldRetry = null;
     private DelayStrategy _strategy = DelayStrategy.Fixed;
+    private TimeSpan? _totalTimeout = null;
 
     private RetryBuilder()
     { }
@@ -81,6 +82,7 @@ public sealed class RetryBuilder
             shouldRetry: _shouldRetry,
             onRetryAsync: _onRetryAsync,
             onSuccessAsync: _onSuccessAsync,
+            totalTimeout: _totalTimeout,
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
     }
@@ -110,15 +112,10 @@ public sealed class RetryBuilder
             shouldRetry: _shouldRetry,
             onRetryAsync: _onRetryAsync,
             onSuccessAsync: _onSuccessAsync,
+            totalTimeout: _totalTimeout,
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
     }
-
-    /// <summary>
-    /// Sets the base delay duration used between retry attempts. The interpretation depends on the chosen <see cref="DelayStrategy"/>.
-    /// </summary>
-    /// <param name="delay">The base delay duration.</param>
-    /// <returns>The current <see cref="RetryBuilder"/> instance for fluent chaining.</returns>
 
     public RetryBuilder WithBaseDelay(TimeSpan delay)
     {
@@ -126,6 +123,11 @@ public sealed class RetryBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the base delay duration used between retry attempts. The interpretation depends on the chosen <see cref="DelayStrategy"/>.
+    /// </summary>
+    /// <param name="delay">The base delay duration.</param>
+    /// <returns>The current <see cref="RetryBuilder"/> instance for fluent chaining.</returns>
     /// <summary>
     /// Specifies a predicate function to determine whether a retry should be attempted based on the caught exception.
     /// </summary>
@@ -177,6 +179,17 @@ public sealed class RetryBuilder
     public RetryBuilder WithStrategy(DelayStrategy strategy)
     {
         _strategy = strategy;
+        return this;
+    }
+
+    /// <summary>
+    /// Specifies a total timeout for the entire retry operation.
+    /// </summary>
+    /// <param name="timeout">The maximum duration allowed for all attempts combined.</param>
+    /// <returns>The current <see cref="RetryBuilder"/> instance for fluent chaining.</returns>
+    public RetryBuilder WithTimeout(TimeSpan timeout)
+    {
+        _totalTimeout = timeout;
         return this;
     }
 }
