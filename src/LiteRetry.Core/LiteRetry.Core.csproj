@@ -5,7 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageId>LiteRetry</PackageId>
-		<Version>0.0.5</Version>
+		<Version>0.0.6</Version>
 		<Authors>Javier Angosto Barjollo</Authors>
 		<Company>Independent</Company>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
