@@ -15,6 +15,7 @@
 		</Description>
 		<PackageTags>retry;dotnet;resilience;backoff;fluent;builder;lite</PackageTags>
 		<RepositoryUrl>https://github.com/JavierAngostoDev/LiteRetry</RepositoryUrl>
+		<PackageIconUrl>https://raw.githubusercontent.com/JavierAngostoDev/LiteRetry/refs/heads/master/icon.png</PackageIconUrl>
 	</PropertyGroup>
 
 	<ItemGroup>
