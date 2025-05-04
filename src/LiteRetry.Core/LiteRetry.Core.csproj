@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<PackageId>LiteRetry</PackageId>
+		<Version>0.0.5</Version>
+		<Authors>Javier Angosto Barjollo</Authors>
+		<Company>Independent</Company>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<Description>
+			LiteRetry is a lightweight, fluent, and extensible retry utility for .NET. It helps developers eliminate repetitive try/catch blocks and build resilient code with ease when dealing with transient failures.
+		</Description>
+		<PackageTags>retry;dotnet;resilience;backoff;fluent;builder;lite</PackageTags>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="" />
+	</ItemGroup>
+
+</Project>
