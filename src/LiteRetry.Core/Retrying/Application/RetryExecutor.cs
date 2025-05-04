@@ -38,6 +38,7 @@ public static class RetryExecutor
         DelayStrategy delayStrategy = DelayStrategy.Fixed,
         Func<Exception, bool>? shouldRetry = null,
         Func<RetryContext, Task>? onRetryAsync = null,
+        Func<RetryContext, Task>? onSuccessAsync = null,
         CancellationToken cancellationToken = default
     )
     {
@@ -64,6 +65,19 @@ public static class RetryExecutor
                 T result = await operation(cancellationToken).ConfigureAwait(false);
                 attemptStopwatch.Stop();
                 totalStopwatch.Stop();
+
+                if (onSuccessAsync is not null)
+                {
+                    try
+                    {
+                        RetryContext successContext = new(attempt, null, TimeSpan.Zero, operationStartTime);
+                        await onSuccessAsync(successContext).ConfigureAwait(false);
+                    }
+                    catch (Exception hookEx)
+                    {
+                        Debug.WriteLine($"[LiteRetry] onSuccessAsync failed: {hookEx.Message}");
+                    }
+                }
 
                 return new
                 (
@@ -181,6 +195,7 @@ public static class RetryExecutor
         DelayStrategy delayStrategy = DelayStrategy.Fixed,
         Func<Exception, bool>? shouldRetry = null,
         Func<RetryContext, Task>? onRetryAsync = null,
+        Func<RetryContext, Task>? onSuccessAsync = null,
         CancellationToken cancellationToken = default
     )
     {
@@ -198,6 +213,7 @@ public static class RetryExecutor
             delayStrategy: delayStrategy,
             shouldRetry: shouldRetry,
             onRetryAsync: onRetryAsync,
+            onSuccessAsync: onSuccessAsync,
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
     }

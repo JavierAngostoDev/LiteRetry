@@ -98,6 +98,43 @@ public class RetryExecutorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_OnSuccessAsyncIsInvokedOnce_WhenOperationSucceeds()
+    {
+        // Arrange
+        int onSuccessCalls = 0;
+        RetryContext? receivedContext = null;
+
+        Func<CancellationToken, Task<string>> operation = async ct =>
+        {
+            await Task.Delay(1, ct);
+            return "OK";
+        };
+
+        Func<RetryContext, Task> onSuccess = ctx =>
+        {
+            onSuccessCalls++;
+            receivedContext = ctx;
+            return Task.CompletedTask;
+        };
+
+        // Act
+        var result = await RetryExecutor.ExecuteAsync(
+            operation,
+            maxAttempts: 3,
+            baseDelay: TimeSpan.FromMilliseconds(5),
+            onSuccessAsync: onSuccess
+        );
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Value.Should().Be("OK");
+        onSuccessCalls.Should().Be(1);
+        receivedContext.Should().NotBeNull();
+        receivedContext!.Attempt.Should().Be(1);
+        receivedContext.LastException.Should().BeNull(); // Confirm success context
+    }
+
+    [Fact]
     public async Task ExecuteAsync_OperationFailsAllAttempts_ReturnsFailureResult()
     {
         int attemptsMade = 0;

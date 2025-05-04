@@ -33,19 +33,21 @@ Install-Package LiteRetry
 
 ## ✨ Features
 
-- **Fluent Configuration**: Intuitive API using RetryBuilder for setting up retry logic.
-- **Direct Execution**: Optional static RetryExecutor for simpler use cases.
-- **Async First**: Built for modern asynchronous programming (Task and Task<T>).
-- **Configurable Retries**: Define the maximum number of attempts.
-- **Delay Strategies**:
-  - Fixed: Constant delay between retries.
-  - Exponential: Delay increases exponentially.
-  - ExponentialWithJitter: Exponential delay with added randomness to help prevent the "thundering herd" problem under high contention.
-- **Exception Filtering**: Retry only on specific exceptions using type (WithFilterByType<TException>) or a custom predicate (WithFilterByPredicate).
-- **Retry Hook**: Execute asynchronous actions (OnRetryAsync) before each retry attempt (e.g., for logging, metrics).
-- **Cancellation Support**: Gracefully cancel operations and pending retries using CancellationToken.
-- **Detailed Results**: RetryResult<T> provides information on success/failure, final value, attempts, timing, and the final exception.
-- **Reliable**: Fully unit-tested.
+* **Fluent Configuration**: Intuitive API using RetryBuilder for setting up retry logic.
+* **Direct Execution**: Optional static RetryExecutor for simpler use cases.
+* **Async First**: Built for modern asynchronous programming (Task and Task<T>).
+* **Configurable Retries**: Define the maximum number of attempts.
+* **Delay Strategies**:
+
+  * Fixed: Constant delay between retries.
+  * Exponential: Delay increases exponentially.
+  * ExponentialWithJitter: Exponential delay with added randomness to help prevent the "thundering herd" problem under high contention.
+* **Exception Filtering**: Retry only on specific exceptions using type (WithFilterByType<TException>) or a custom predicate (WithFilterByPredicate).
+* **Retry Hook**: Execute asynchronous actions (OnRetryAsync) before each retry attempt (e.g., for logging, metrics).
+* **Success Hook**: Execute asynchronous actions (OnSuccessAsync) after a successful attempt, even after retries.
+* **Cancellation Support**: Gracefully cancel operations and pending retries using CancellationToken.
+* **Detailed Results**: RetryResult<T> provides information on success/failure, final value, attempts, timing, and the final exception.
+* **Reliable**: Fully unit-tested.
 
 ---
 
@@ -88,6 +90,10 @@ public class DataFetcher
             .WithMaxAttempts(3)
             .WithBaseDelay(TimeSpan.FromMilliseconds(500))
             .WithFilterByType<HttpRequestException>()
+            .OnSuccessAsync(ctx => {
+                Console.WriteLine($"Operation succeeded on attempt {ctx.Attempt}.");
+                return Task.CompletedTask;
+            })
             .RunAsync(fetchOperation, cancellationToken);
 
         if (result.Succeeded)
@@ -140,9 +146,12 @@ public class TaskProcessor
                 .WithBaseDelay(TimeSpan.FromMilliseconds(300))
                 .WithStrategy(DelayStrategy.Fixed)
                 .WithFilterByType<TimeoutException>()
-                .OnRetryAsync(ctx =>
-                {
-                    Console.WriteLine($"Attempt {ctx.AttemptNumber} failed. Retrying after {ctx.Delay.TotalMilliseconds}ms...");
+                .OnRetryAsync(ctx => {
+                    Console.WriteLine($"Attempt {ctx.Attempt} failed. Retrying after {ctx.Delay.TotalMilliseconds}ms...");
+                    return Task.CompletedTask;
+                })
+                .OnSuccessAsync(ctx => {
+                    Console.WriteLine($"Successfully completed after {ctx.Attempt} attempts.");
                     return Task.CompletedTask;
                 });
 
@@ -192,7 +201,12 @@ try
         shouldRetry: ex => ex is TimeoutException || ex is HttpRequestException,
         onRetryAsync: ctx =>
         {
-            Console.WriteLine($"RetryExecutor: Retry #{ctx.AttemptNumber} after {ctx.Delay.TotalMilliseconds}ms due to {ctx.LastException.GetType().Name}");
+            Console.WriteLine($"RetryExecutor: Retry #{ctx.Attempt} after {ctx.Delay.TotalMilliseconds}ms due to {ctx.LastException.GetType().Name}");
+            return Task.CompletedTask;
+        },
+        onSuccessAsync: ctx =>
+        {
+            Console.WriteLine($"RetryExecutor: Operation succeeded on attempt {ctx.Attempt}.");
             return Task.CompletedTask;
         },
         cancellationToken: CancellationToken.None
@@ -211,30 +225,32 @@ catch (OperationCanceledException)
 
 ---
 
-## 📦 API Overview
+## 📆 API Overview
 
 ### Key Classes & Enums
 
-- **RetryBuilder**: Fluent API for configuring and executing retry logic.
-- **RetryExecutor**: Static class with ExecuteAsync methods.
-- **RetryContext**:
-  - `Attempt`
-  - `LastException`
-  - `Delay`
-  - `StartTime`
-- **RetryResult<T>**:
-  - `Succeeded`
-  - `Value`
-  - `Attempts`
-  - `ElapsedTime`
-  - `LastAttemptDuration`
-  - `FinalException`
-- **RetryFailedException**: Thrown when all attempts fail.
-- **DelayStrategy**: `Fixed`, `Exponential`, `ExponentialWithJitter`.
+* **RetryBuilder**: Fluent API for configuring and executing retry logic.
+* **RetryExecutor**: Static class with ExecuteAsync methods.
+* **RetryContext**:
+
+  * `Attempt`
+  * `LastException`
+  * `Delay`
+  * `StartTime`
+* **RetryResult<T>**:
+
+  * `Succeeded`
+  * `Value`
+  * `Attempts`
+  * `ElapsedTime`
+  * `LastAttemptDuration`
+  * `FinalException`
+* **RetryFailedException**: Thrown when all attempts fail.
+* **DelayStrategy**: `Fixed`, `Exponential`, `ExponentialWithJitter`.
 
 ---
 
-## 🧾 License
+## 📜 License
 
 Distributed under the MIT License. See LICENSE file for more information.
 

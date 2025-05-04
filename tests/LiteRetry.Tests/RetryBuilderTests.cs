@@ -281,4 +281,42 @@ public class RetryBuilderTests
         act.Should().Throw<RetryFailedException>()
            .WithMessage("Exception filter predicate cannot be null.");
     }
+
+    [Fact]
+    public async Task RunAsync_T_WithOnSuccessHook_HookIsCalledOnceOnSuccess()
+    {
+        // Arrange
+        int onSuccessCalls = 0;
+        RetryContext? receivedContext = null;
+
+        Func<CancellationToken, Task<string>> operation = async ct =>
+        {
+            await Task.Delay(1, ct);
+            return "SUCCESS";
+        };
+
+        Func<RetryContext, Task> onSuccess = ctx =>
+        {
+            onSuccessCalls++;
+            receivedContext = ctx;
+            return Task.CompletedTask;
+        };
+
+        RetryBuilder builder = RetryBuilder.Configure()
+                                           .OnSuccessAsync(onSuccess)
+                                           .WithMaxAttempts(3)
+                                           .WithBaseDelay(TimeSpan.FromMilliseconds(1));
+
+        // Act
+        RetryResult<string> result = await builder.RunAsync(operation);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Value.Should().Be("SUCCESS");
+        result.Attempts.Should().Be(1);
+        onSuccessCalls.Should().Be(1);
+        receivedContext.Should().NotBeNull();
+        receivedContext!.Attempt.Should().Be(1);
+        receivedContext.LastException.Should().BeNull();
+    }
 }

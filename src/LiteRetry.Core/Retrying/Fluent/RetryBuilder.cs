@@ -13,6 +13,7 @@ public sealed class RetryBuilder
     private TimeSpan? _baseDelay = null;
     private int _maxAttempts = 3;
     private Func<RetryContext, Task>? _onRetryAsync = null;
+    private Func<RetryContext, Task>? _onSuccessAsync = null;
     private Func<Exception, bool>? _shouldRetry = null;
     private DelayStrategy _strategy = DelayStrategy.Fixed;
 
@@ -45,6 +46,17 @@ public sealed class RetryBuilder
     }
 
     /// <summary>
+    /// Specifies an asynchronous action to be executed when the operation completes successfully.
+    /// </summary>
+    /// <param name="hook">The asynchronous action to execute upon successful completion.</param>
+    /// <returns>The current <see cref="RetryBuilder"/> instance for fluent chaining.</returns>
+    public RetryBuilder OnSuccessAsync(Func<RetryContext, Task> hook)
+    {
+        _onSuccessAsync = hook;
+        return this;
+    }
+
+    /// <summary>
     /// Executes the configured retry policy for the specified asynchronous operation that returns a result.
     /// </summary>
     /// <typeparam name="T">The type of the result returned by the operation.</typeparam>
@@ -68,6 +80,7 @@ public sealed class RetryBuilder
             delayStrategy: _strategy,
             shouldRetry: _shouldRetry,
             onRetryAsync: _onRetryAsync,
+            onSuccessAsync: _onSuccessAsync,
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
     }
@@ -96,6 +109,7 @@ public sealed class RetryBuilder
             delayStrategy: _strategy,
             shouldRetry: _shouldRetry,
             onRetryAsync: _onRetryAsync,
+            onSuccessAsync: _onSuccessAsync,
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
     }

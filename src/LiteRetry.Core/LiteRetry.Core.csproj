@@ -5,7 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageId>LiteRetry</PackageId>
-		<Version>0.0.8</Version>
+		<Version>0.0.9</Version>
 		<Authors>Javier Angosto Barjollo</Authors>
 		<Company>Independent</Company>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -16,6 +16,10 @@
 		<PackageTags>retry;dotnet;resilience;backoff;fluent;builder;lite</PackageTags>
 		<RepositoryUrl>https://github.com/JavierAngostoDev/LiteRetry</RepositoryUrl>
 		<PackageIcon>icon.png</PackageIcon>
+		<PackageReleaseNotes>
+			- Added onSuccessAsync hook to enable logic execution after a successful retry. 
+			- Improved internal handling and minor enhancements.
+		</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>

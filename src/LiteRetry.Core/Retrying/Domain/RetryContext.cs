@@ -3,7 +3,7 @@
 public sealed class RetryContext
 (
     int attempt,
-    Exception lastException,
+    Exception? lastException,
     TimeSpan delay,
     DateTimeOffset startTime
 )
