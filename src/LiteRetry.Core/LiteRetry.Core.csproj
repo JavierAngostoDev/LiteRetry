@@ -14,6 +14,7 @@
 			LiteRetry is a lightweight, fluent, and extensible retry utility for .NET. It helps developers eliminate repetitive try/catch blocks and build resilient code with ease when dealing with transient failures.
 		</Description>
 		<PackageTags>retry;dotnet;resilience;backoff;fluent;builder;lite</PackageTags>
+		<RepositoryUrl>https://github.com/JavierAngostoDev/LiteRetry</RepositoryUrl>
 	</PropertyGroup>
 
 	<ItemGroup>
