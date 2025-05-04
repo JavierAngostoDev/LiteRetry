@@ -180,7 +180,7 @@ public static class RetryExecutor
 
             case DelayStrategy.ExponentialWithJitter:
                 int power = attempt - 1;
-                double exponentialDelayMs = baseDelay.TotalMilliseconds * Math.Pow(2, power - 1);
+                double exponentialDelayMs = baseDelay.TotalMilliseconds * Math.Pow(2, power);
                 double jitterMs = exponentialDelayMs * 0.4 * (_jitterer.NextDouble() - 0.5);
                 int finalDelayMs = (int)(exponentialDelayMs + jitterMs);
                 return TimeSpan.FromMilliseconds(Math.Max(1, finalDelayMs));
