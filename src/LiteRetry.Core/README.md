@@ -46,6 +46,7 @@ Install-Package LiteRetry
 - **Exception Filtering**: Retry only on specific exceptions using type (WithFilterByType<TException>) or a custom predicate (WithFilterByPredicate).
 - **Retry Hook**: Execute asynchronous actions (OnRetryAsync) before each retry attempt (e.g., for logging, metrics).
 - **Success Hook**: Execute asynchronous actions (OnSuccessAsync) after a successful attempt, even after retries.
+- **Failure Hook**: Execute asynchronous actions (OnFailureAsync) after all retry attempts have failed.
 - **Cancellation Support**: Gracefully cancel operations and pending retries using CancellationToken.
 - **Detailed Results**: RetryResult<T> provides information on success/failure, final value, attempts, timing, and the final exception.
 - **Reliable**: Fully unit-tested.
@@ -94,6 +95,10 @@ public class DataFetcher
             .WithTimeout(TimeSpan.FromSeconds(2))
             .OnSuccessAsync(ctx => {
                 Console.WriteLine($"Operation succeeded on attempt {ctx.Attempt}.");
+                return Task.CompletedTask;
+            })
+            .OnFailureAsync(ctx => {
+                Console.WriteLine($"Operation failed after {ctx.Attempt} attempts.");
                 return Task.CompletedTask;
             })
             .RunAsync(fetchOperation, cancellationToken);
@@ -156,6 +161,10 @@ public class TaskProcessor
                 .OnSuccessAsync(ctx => {
                     Console.WriteLine($"Successfully completed after {ctx.Attempt} attempts.");
                     return Task.CompletedTask;
+                })
+                .OnFailureAsync(ctx => {
+                    Console.WriteLine($"Operation failed after {ctx.Attempt} attempts.");
+                    return Task.CompletedTask;
                 });
 
             await retryExecutor.RunAsync(processOperation, cancellationToken);
@@ -212,6 +221,11 @@ try
             Console.WriteLine($"RetryExecutor: Operation succeeded on attempt {ctx.Attempt}.");
             return Task.CompletedTask;
         },
+        onFailureAsync: ctx =>
+        {
+            Console.WriteLine($"RetryExecutor: Operation failed after {ctx.Attempt} attempts.");
+            return Task.CompletedTask;
+        },
         totalTimeout: TimeSpan.FromSeconds(3),
         cancellationToken: CancellationToken.None
     );
@@ -236,13 +250,11 @@ catch (OperationCanceledException)
 * **RetryBuilder**: Fluent API for configuring and executing retry logic.
 * **RetryExecutor**: Static class with ExecuteAsync methods.
 * **RetryContext**:
-
   * `Attempt`
   * `LastException`
   * `Delay`
   * `StartTime`
 * **RetryResult<T>**:
-
   * `Succeeded`
   * `Value`
   * `Attempts`

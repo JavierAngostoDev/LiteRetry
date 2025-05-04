@@ -25,6 +25,7 @@ public static class RetryExecutor
     /// <param name="shouldRetry">An optional predicate function that determines if a retry should occur based on the caught exception. If null, retries on any exception. Return true to retry, false to fail immediately.</param>
     /// <param name="onRetryAsync">An optional asynchronous action to execute before each retry attempt. Receives context about the current attempt.</param>
     /// <param name="onSuccessAsync">An optional asynchronous action to execute after a successful retry. Receives context about the current attempt.</param>
+    /// <param name="onFailureAsync">An optional asynchronous action to execute after a failure last retry. Receives context about the current attempt.</param>
     /// <param name="totalTimeout">An optional maximum duration for the entire retry process. If the total elapsed time exceeds this value, the operation is aborted with a timeout exception.</param>
     /// <param name="cancellationToken">A CancellationToken to observe while waiting for the operation and delays.</param>
     /// <returns>
@@ -41,6 +42,7 @@ public static class RetryExecutor
         Func<Exception, bool>? shouldRetry = null,
         Func<RetryContext, Task>? onRetryAsync = null,
         Func<RetryContext, Task>? onSuccessAsync = null,
+        Func<RetryContext, Task>? onFailureAsync = null,
         TimeSpan? totalTimeout = null,
         CancellationToken cancellationToken = default
     )
@@ -128,6 +130,20 @@ public static class RetryExecutor
                 if (attempt >= maxAttempts || !(shouldRetry?.Invoke(ex) ?? true))
                 {
                     totalStopwatch.Stop();
+
+                    if (onFailureAsync is not null)
+                    {
+                        try
+                        {
+                            RetryContext failureContext = new(attempt, lastException, TimeSpan.Zero, operationStartTime);
+                            await onFailureAsync(failureContext).ConfigureAwait(false);
+                        }
+                        catch (Exception hookEx)
+                        {
+                            Debug.WriteLine($"[LiteRetry] onFailureAsync failed: {hookEx.Message}");
+                        }
+                    }
+
                     RetryFailedException maxAttemptsException = new
                     (
                         message: $"Operation failed after {attempt} attempt(s). See inner exception for details.",
@@ -201,6 +217,7 @@ public static class RetryExecutor
     /// <param name="shouldRetry">An optional predicate function that determines if a retry should occur based on the caught exception. If null, retries on any exception. Return true to retry, false to fail immediately.</param>
     /// <param name="onRetryAsync">An optional asynchronous action to execute before each retry attempt. Receives context about the current attempt.</param>
     /// <param name="onSuccessAsync">An optional asynchronous action to execute after a successful retry. Receives context about the current attempt.</param>
+    /// <param name="onFailureAsync">An optional asynchronous action to execute after a failure last retry. Receives context about the current attempt.</param>
     /// <param name="totalTimeout">An optional maximum duration for the entire retry process. If the total elapsed time exceeds this value, the operation is aborted with a timeout exception.</param>
     /// <param name="cancellationToken">A CancellationToken to observe while waiting for the operation and delays.</param>
     /// <returns>
@@ -211,7 +228,7 @@ public static class RetryExecutor
     /// </returns>
     /// <exception cref="OperationCanceledException">Thrown if the <paramref name="cancellationToken"/> is canceled during the operation or delay.</exception>
     /// <remarks>
-    /// This method wraps the provided operation and calls the generic <c>ExecuteAsync&lt;bool&gt;</c> overload.
+    /// This method wraps the provided operation and calls the generic ExecuteAsync overload.
     /// While it returns a Task, you might need to inspect the returned task's status or handle exceptions propagated from the underlying call for robust error handling,
     /// although the primary mechanism for failure reporting in LiteRetry is the RetryResult object returned by the generic overload.
     /// </remarks>
@@ -224,6 +241,7 @@ public static class RetryExecutor
         Func<Exception, bool>? shouldRetry = null,
         Func<RetryContext, Task>? onRetryAsync = null,
         Func<RetryContext, Task>? onSuccessAsync = null,
+        Func<RetryContext, Task>? onFailureAsync = null,
         TimeSpan? totalTimeout = null,
         CancellationToken cancellationToken = default
     )
@@ -243,6 +261,7 @@ public static class RetryExecutor
             shouldRetry: shouldRetry,
             onRetryAsync: onRetryAsync,
             onSuccessAsync: onSuccessAsync,
+            onFailureAsync: onFailureAsync,
             totalTimeout: totalTimeout,
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);

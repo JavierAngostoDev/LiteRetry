@@ -5,7 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageId>LiteRetry</PackageId>
-		<Version>0.0.10</Version>
+		<Version>0.0.11</Version>
 		<Authors>Javier Angosto Barjollo</Authors>
 		<Company>Independent</Company>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -17,12 +17,11 @@
 		<RepositoryUrl>https://github.com/JavierAngostoDev/LiteRetry</RepositoryUrl>
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageReleaseNotes>
-			- Added support for global total timeout via `Timeout(TimeSpan)` in both `RetryExecutor` and `RetryBuilder`.
-			- The retry process will now stop early and return a structured failure result if the total timeout is exceeded.
-			- `RetryBuilder` extended with `.WithTimeout(...)` for fluent configuration.
-			- Cancellation tokens are now respected alongside total timeout limits using a linked token source.
-			- Enhanced test coverage for timeout handling, including early termination and success within limit.
-			- Improved internal documentation and XML comments for better IntelliSense support.
+			- Added support for `.OnFailureAsync(...)` to execute logic after the final failed attempt.
+			- `RetryBuilder` extended with `.OnFailureAsync(...)` for fluent failure hook configuration.
+			- Hook receives `RetryContext` with details of the last failed attempt.
+			- Added internal error handling for exceptions thrown inside the failure hook.
+			- Unit tests added to ensure failure hook execution and resilience.
 		</PackageReleaseNotes>
 	</PropertyGroup>
 

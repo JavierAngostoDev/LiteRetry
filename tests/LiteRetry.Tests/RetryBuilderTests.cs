@@ -376,4 +376,67 @@ public class RetryBuilderTests
         act.Should().Throw<RetryFailedException>()
            .WithMessage("Exception filter predicate cannot be null.");
     }
+
+    [Fact]
+    public async Task RunAsync_T_OnFailureAsyncIsCalledOnceOnFailure()
+    {
+        int failureHookCalls = 0;
+        RetryContext? failureContext = null;
+
+        Func<CancellationToken, Task<string>> failingOperation = async (ct) =>
+        {
+            await Task.Delay(1, ct);
+            throw new InvalidOperationException("Fail always");
+        };
+
+        Func<RetryContext, Task> onFailure = ctx =>
+        {
+            failureHookCalls++;
+            failureContext = ctx;
+            return Task.CompletedTask;
+        };
+
+        RetryBuilder builder = RetryBuilder.Configure()
+            .WithMaxAttempts(2)
+            .WithBaseDelay(TimeSpan.FromMilliseconds(1))
+            .OnFailureAsync(onFailure);
+
+        RetryResult<string> result = await builder.RunAsync(failingOperation);
+
+        result.Succeeded.Should().BeFalse();
+        result.Attempts.Should().Be(2);
+        failureHookCalls.Should().Be(1);
+        failureContext.Should().NotBeNull();
+        failureContext!.Attempt.Should().Be(2);
+        failureContext.LastException.Should().BeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task RunAsync_T_OnFailureAsyncIsNotCalledOnSuccess()
+    {
+        int failureHookCalls = 0;
+
+        Func<CancellationToken, Task<string>> successfulOperation = async (ct) =>
+        {
+            await Task.Delay(1, ct);
+            return "OK";
+        };
+
+        Func<RetryContext, Task> onFailure = ctx =>
+        {
+            failureHookCalls++;
+            return Task.CompletedTask;
+        };
+
+        RetryBuilder builder = RetryBuilder.Configure()
+            .WithMaxAttempts(3)
+            .OnFailureAsync(onFailure);
+
+        RetryResult<string> result = await builder.RunAsync(successfulOperation);
+
+        result.Succeeded.Should().BeTrue();
+        result.Value.Should().Be("OK");
+        failureHookCalls.Should().Be(0);
+    }
+
 }

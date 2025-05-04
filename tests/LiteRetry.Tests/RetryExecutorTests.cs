@@ -139,7 +139,7 @@ public class RetryExecutorTests
         onSuccessCalls.Should().Be(1);
         receivedContext.Should().NotBeNull();
         receivedContext!.Attempt.Should().Be(1);
-        receivedContext.LastException.Should().BeNull(); // Confirm success context
+        receivedContext.LastException.Should().BeNull();
     }
 
     [Fact]
@@ -218,7 +218,6 @@ public class RetryExecutorTests
         onRetryCalls.Should().Be(2);
         result.FinalException.Should().BeNull();
     }
-
     [Fact]
     public async Task ExecuteAsync_OperationItselfThrowsOperationCanceledException_ReturnsFailureWithRetryFailedException()
     {
@@ -249,6 +248,7 @@ public class RetryExecutorTests
         result.FinalException.Should().BeOfType<RetryFailedException>();
         result.FinalException!.Message.Should().Contain("timeout");
     }
+
 
     [Fact]
     public async Task ExecuteAsync_OperationSucceedsFirstTry_ReturnsSuccessResult()
@@ -371,5 +371,39 @@ public class RetryExecutorTests
         result.Succeeded.Should().BeTrue();
         result.Attempts.Should().Be(2);
         onRetryCalls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OnFailureAsyncIsInvokedOnce_WhenOperationFailsCompletely()
+    {
+        int failureHookCalls = 0;
+        RetryContext? failureCtx = null;
+
+        Func<CancellationToken, Task<int>> operation = async (ct) =>
+        {
+            await Task.Delay(1, ct);
+            throw new InvalidOperationException("Expected failure");
+        };
+
+        Func<RetryContext, Task> onFailure = ctx =>
+        {
+            failureHookCalls++;
+            failureCtx = ctx;
+            return Task.CompletedTask;
+        };
+
+        RetryResult<int> result = await RetryExecutor.ExecuteAsync(
+            operation,
+            maxAttempts: 2,
+            baseDelay: TimeSpan.FromMilliseconds(1),
+            onFailureAsync: onFailure
+        );
+
+        result.Succeeded.Should().BeFalse();
+        result.Attempts.Should().Be(2);
+        failureHookCalls.Should().Be(1);
+        failureCtx.Should().NotBeNull();
+        failureCtx!.Attempt.Should().Be(2);
+        failureCtx.LastException.Should().BeOfType<InvalidOperationException>();
     }
 }
