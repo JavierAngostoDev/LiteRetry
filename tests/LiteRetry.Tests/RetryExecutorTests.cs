@@ -126,7 +126,7 @@ public class RetryExecutorTests
         };
 
         // Act
-        var result = await RetryExecutor.ExecuteAsync(
+        RetryResult<string> result = await RetryExecutor.ExecuteAsync(
             operation,
             maxAttempts: 3,
             baseDelay: TimeSpan.FromMilliseconds(5),
