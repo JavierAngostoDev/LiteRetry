@@ -106,6 +106,40 @@ public class RetryExecutorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_OnFailureAsyncIsInvokedOnce_WhenOperationFailsCompletely()
+    {
+        int failureHookCalls = 0;
+        RetryContext? failureCtx = null;
+
+        Func<CancellationToken, Task<int>> operation = async (ct) =>
+        {
+            await Task.Delay(1, ct);
+            throw new InvalidOperationException("Expected failure");
+        };
+
+        Func<RetryContext, Task> onFailure = ctx =>
+        {
+            failureHookCalls++;
+            failureCtx = ctx;
+            return Task.CompletedTask;
+        };
+
+        RetryResult<int> result = await RetryExecutor.ExecuteAsync(
+            operation,
+            maxAttempts: 2,
+            baseDelay: TimeSpan.FromMilliseconds(1),
+            onFailureAsync: onFailure
+        );
+
+        result.Succeeded.Should().BeFalse();
+        result.Attempts.Should().Be(2);
+        failureHookCalls.Should().Be(1);
+        failureCtx.Should().NotBeNull();
+        failureCtx!.Attempt.Should().Be(2);
+        failureCtx.LastException.Should().BeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_OnSuccessAsyncIsInvokedOnce_WhenOperationSucceeds()
     {
         // Arrange
@@ -218,6 +252,7 @@ public class RetryExecutorTests
         onRetryCalls.Should().Be(2);
         result.FinalException.Should().BeNull();
     }
+
     [Fact]
     public async Task ExecuteAsync_OperationItselfThrowsOperationCanceledException_ReturnsFailureWithRetryFailedException()
     {
@@ -249,7 +284,6 @@ public class RetryExecutorTests
         result.FinalException!.Message.Should().Contain("timeout");
     }
 
-
     [Fact]
     public async Task ExecuteAsync_OperationSucceedsFirstTry_ReturnsSuccessResult()
     {
@@ -268,6 +302,62 @@ public class RetryExecutorTests
         result.FinalException.Should().BeNull();
         result.ElapsedTime.Should().BeGreaterThan(TimeSpan.Zero);
         result.LastAttemptDuration.Should().BeGreaterThan(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldFail_WhenOnFailureAsyncAlsoFails()
+    {
+        // Arrange
+        Func<CancellationToken, Task<string>> operation = _ =>
+            throw new InvalidOperationException("Simulated operation failure");
+
+        Func<RetryContext, Task> onFailureAsync = _ =>
+            throw new Exception("Failure hook explosion");
+
+        // Act
+        RetryResult<string> result = await RetryExecutor.ExecuteAsync(
+            operation: operation,
+            maxAttempts: 2,
+            onFailureAsync: onFailureAsync
+        );
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.FinalException.Should().NotBeNull();
+        result.Attempts.Should().Be(2);
+        result.FinalException.Should().BeOfType<RetryFailedException>();
+        result.FinalException!.InnerException.Should().BeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldRetryEvenWhenOnRetryAsyncFails()
+    {
+        // Arrange
+        int attempt = 0;
+
+        Func<CancellationToken, Task<string>> operation = _ =>
+        {
+            attempt++;
+            if (attempt < 2)
+                throw new InvalidOperationException("Simulated failure");
+            return Task.FromResult("Recovered");
+        };
+
+        Func<RetryContext, Task> onRetryAsync = _ =>
+            throw new Exception("Retry hook failure");
+
+        // Act
+        RetryResult<string> result = await RetryExecutor.ExecuteAsync(
+            operation: operation,
+            maxAttempts: 3,
+            onRetryAsync: onRetryAsync
+        );
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Attempts.Should().Be(2);
+        result.Value.Should().Be("Recovered");
+        result.FinalException.Should().BeNull(); // la excepción del hook no debe propagarse
     }
 
     [Fact]
@@ -304,6 +394,31 @@ public class RetryExecutorTests
         onRetryCalls.Should().Be(0);
         result.FinalException.Should().BeOfType<RetryFailedException>();
         result.FinalException!.InnerException.Should().BeOfType<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldSucceed_WhenOnSuccessAsyncFails()
+    {
+        // Arrange
+        Func<CancellationToken, Task<string>> operation = _ => Task.FromResult("OK");
+
+        Func<RetryContext, Task> onSuccessAsync = _ =>
+        {
+            throw new InvalidOperationException("Hook failure!");
+        };
+
+        // Act
+        RetryResult<string> result = await RetryExecutor.ExecuteAsync
+        (
+            operation: operation,
+            onSuccessAsync: onSuccessAsync
+        );
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Value.Should().Be("OK");
+        result.Attempts.Should().Be(1);
+        result.FinalException.Should().BeNull();
     }
 
     [Fact]
@@ -374,36 +489,41 @@ public class RetryExecutorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_OnFailureAsyncIsInvokedOnce_WhenOperationFailsCompletely()
+    public async Task ExecuteAsync_ShouldUseBaseDelay_WhenDelayStrategyIsInvalid()
     {
-        int failureHookCalls = 0;
-        RetryContext? failureCtx = null;
+        // Arrange
+        int callCount = 0;
+        TimeSpan? observedDelay = null;
 
-        Func<CancellationToken, Task<int>> operation = async (ct) =>
+        Func<CancellationToken, Task<string>> operation = _ =>
         {
-            await Task.Delay(1, ct);
-            throw new InvalidOperationException("Expected failure");
+            callCount++;
+            if (callCount == 1)
+                throw new Exception("simulated failure");
+            return Task.FromResult("OK");
         };
 
-        Func<RetryContext, Task> onFailure = ctx =>
+        Func<RetryContext, Task> onRetryAsync = ctx =>
         {
-            failureHookCalls++;
-            failureCtx = ctx;
+            observedDelay = ctx.Delay;
             return Task.CompletedTask;
         };
 
-        RetryResult<int> result = await RetryExecutor.ExecuteAsync(
-            operation,
+        DelayStrategy invalidStrategy = (DelayStrategy)999;
+
+        // Act
+        RetryResult<string> result = await RetryExecutor.ExecuteAsync
+        (
+            operation: operation,
             maxAttempts: 2,
-            baseDelay: TimeSpan.FromMilliseconds(1),
-            onFailureAsync: onFailure
+            baseDelay: TimeSpan.FromMilliseconds(500),
+            delayStrategy: invalidStrategy,
+            onRetryAsync: onRetryAsync
         );
 
-        result.Succeeded.Should().BeFalse();
+        // Assert
+        result.Succeeded.Should().BeTrue();
         result.Attempts.Should().Be(2);
-        failureHookCalls.Should().Be(1);
-        failureCtx.Should().NotBeNull();
-        failureCtx!.Attempt.Should().Be(2);
-        failureCtx.LastException.Should().BeOfType<InvalidOperationException>();
+        observedDelay.Should().Be(TimeSpan.FromMilliseconds(500));
     }
 }

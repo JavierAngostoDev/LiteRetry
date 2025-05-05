@@ -10,7 +10,7 @@ public class RetryTests
     public void Configure_ShouldReturnRetryBuilderInstance()
     {
         // Act
-        var builder = Retry.Configure();
+        RetryBuilder builder = Retry.Configure();
 
         // Assert
         builder.Should().NotBeNull();
