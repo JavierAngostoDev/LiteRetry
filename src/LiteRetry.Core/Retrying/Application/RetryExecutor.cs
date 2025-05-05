@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using LiteRetry.Core.Retrying.Application.Enums;
 using LiteRetry.Core.Retrying.Domain;
 
@@ -107,7 +108,7 @@ public static class RetryExecutor
 
                 if (ex is OperationCanceledException && effectiveToken.IsCancellationRequested)
                 {
-                    totalStopwatch.Stop(); 
+                    totalStopwatch.Stop();
                     RetryFailedException timeoutException = new
                     (
                         message: $"Retry process exceeded total timeout.",
@@ -185,25 +186,7 @@ public static class RetryExecutor
             }
         }
 
-        totalStopwatch.Stop();
-
-        RetryFailedException finalException = new
-        (
-            message: $"Operation failed after {attempt} attempt(s). Retry logic ended unexpectedly.",
-            attempts: attempt,
-            elapsedTime: totalStopwatch.Elapsed,
-            innerException: lastException
-        );
-
-        return new RetryResult<T>
-        (
-            value: default,
-            succeeded: false,
-            finalException: finalException,
-            attempts: attempt,
-            elapsedTime: totalStopwatch.Elapsed,
-            lastAttemptDuration: totalStopwatch.Elapsed
-        );
+        return CreateUnexpectedFailureResult<T>(maxAttempts, totalStopwatch, lastException);
     }
 
     /// <summary>
@@ -299,6 +282,44 @@ public static class RetryExecutor
             default:
                 return baseDelay;
         }
+    }
+
+    /// <summary>
+    /// Generates a failure <see cref="RetryResult{T}"/> for the unlikely scenario where the
+    /// <see cref="ExecuteAsync{T}"/> retry loop terminates unexpectedly without an explicit internal return.
+    /// </summary>
+    /// <typeparam name="T">The type of the expected result from the operation.</typeparam>
+    /// <param name="attempt">The final attempt count when the unexpected termination occurred.</param>
+    /// <param name="totalStopwatch">The stopwatch tracking the total elapsed time.</param>
+    /// <param name="lastException">The last exception captured before termination, if any.</param>
+    /// <returns>A <see cref="RetryResult{T}"/> indicating an unexpected failure.</returns>
+    /// <remarks>
+    /// This path should be unreachable as <see cref="ExecuteAsync{T}"/> should always return from within its loop.
+    /// It primarily exists to satisfy compiler analysis (CS0161 - not all code paths return a value).
+    /// Marked with <see cref="ExcludeFromCodeCoverageAttribute"/> as it is not expected to be hit by tests.
+    /// </remarks>
+    [ExcludeFromCodeCoverage]
+    private static RetryResult<T> CreateUnexpectedFailureResult<T>(int attempt, Stopwatch totalStopwatch, Exception? lastException)
+    {
+        totalStopwatch.Stop();
+
+        RetryFailedException finalException = new
+        (
+            message: $"Operation failed after {attempt} attempt(s). Retry logic ended unexpectedly.",
+            attempts: attempt,
+            elapsedTime: totalStopwatch.Elapsed,
+            innerException: lastException
+        );
+
+        return new RetryResult<T>
+        (
+            value: default,
+            succeeded: false,
+            finalException: finalException,
+            attempts: attempt,
+            elapsedTime: totalStopwatch.Elapsed,
+            lastAttemptDuration: totalStopwatch.Elapsed
+        );
     }
 
     #endregion Private
