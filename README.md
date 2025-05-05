@@ -1,6 +1,6 @@
 # LiteRetry ✨
 
-[![NuGet version](https://img.shields.io/nuget/v/LiteRetry.svg?style=flat-square)](https://www.nuget.org/packages/LiteRetry/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![NuGet version](https://img.shields.io/nuget/v/LiteRetry.svg?style=flat-square)](https://www.nuget.org/packages/LiteRetry/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![codecov](https://codecov.io/gh/JavierAngostoDev/LiteRetry/graph/badge.svg?token=TZNJL6KMV0)](https://codecov.io/gh/JavierAngostoDev/LiteRetry)
 
 **LiteRetry** is a lightweight, fluent, and extensible retry utility for .NET.
 It helps developers eliminate repetitive `try/catch` blocks and build resilient code with ease when dealing with transient failures.
