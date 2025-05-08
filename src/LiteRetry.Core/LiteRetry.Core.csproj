@@ -5,7 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageId>LiteRetry</PackageId>
-		<Version>0.0.12</Version>
+		<Version>1.0.0</Version>
 		<Authors>Javier Angosto Barjollo</Authors>
 		<Company>Independent</Company>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -17,14 +17,32 @@
 		<RepositoryUrl>https://github.com/JavierAngostoDev/LiteRetry</RepositoryUrl>
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageReleaseNotes>
-			- Added codecov
+			**Release (v1.0.0)** ⚡
+
+			Provides a lightweight and flexible retry mechanism for transient fault handling in .NET applications.
+
+			**Key Features:**
+
+			* Retry any `Func&lt;Task&lt;T&gt;&gt;` or `Func&lt;T&gt;` operations with minimal setup.
+			* Supports configurable maximum retry attempts and delay strategies.
+			* Built-in support for exponential backoff and fixed delay.
+			* Offers both synchronous and asynchronous retry execution (`Retry.Run()` and `Retry.RunAsync()`).
+			* Predicate-based retry filtering: control which exceptions or results should trigger retries.
+			* Simple and fluent API for improved readability and quick integration.
+			* Lightweight implementation with zero external dependencies.
+			* Targets modern .NET versions including .NET Standard 2.0 for broad compatibility.
+
+			Ideal for scenarios like transient HTTP failures, flaky I/O operations, or external service calls.
+
+			See the README for configuration examples and advanced usage.
 		</PackageReleaseNotes>
+
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Compile Remove="images\**" />
-	  <EmbeddedResource Remove="images\**" />
-	  <None Remove="images\**" />
+		<Compile Remove="images\**" />
+		<EmbeddedResource Remove="images\**" />
+		<None Remove="images\**" />
 	</ItemGroup>
 
 	<ItemGroup>
